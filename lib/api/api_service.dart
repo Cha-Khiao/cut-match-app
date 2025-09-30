@@ -10,7 +10,7 @@ import 'package:cut_match_app/models/user_model.dart';
 import 'package:http/http.dart' as http;
 
 class ApiService {
-  static const String _baseUrl = 'https://cut-match-api.onrender.com/api';
+  static const String _baseUrl = 'https://cut-match-api.vercel.app/api';
 
   //============================================
   // Auth Functions (No Token Required)
