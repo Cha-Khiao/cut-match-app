@@ -1,7 +1,7 @@
 import 'package:cut_match_app/api/api_service.dart';
 import 'package:cut_match_app/models/salon_model.dart';
 import 'package:cut_match_app/providers/auth_provider.dart';
-import 'package:cut_match_app/screens/admin/admin_salon_form_screen.dart';
+import 'package:cut_match_app/screens/admin/salon/admin_salon_form_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 

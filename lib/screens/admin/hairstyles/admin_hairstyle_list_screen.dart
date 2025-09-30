@@ -1,7 +1,7 @@
 import 'package:cut_match_app/api/api_service.dart';
 import 'package:cut_match_app/models/hairstyle_model.dart';
 import 'package:cut_match_app/providers/auth_provider.dart';
-import 'package:cut_match_app/screens/admin/hairstyle_form_screen.dart';
+import 'package:cut_match_app/screens/admin/hairstyles/hairstyle_form_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
