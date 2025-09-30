@@ -1,5 +1,5 @@
-import 'package:cut_match_app/screens/admin/admin_hairstyle_list_screen.dart';
-import 'package:cut_match_app/screens/admin/admin_salon_list_screen.dart';
+import 'package:cut_match_app/screens/admin/hairstyles/admin_hairstyle_list_screen.dart';
+import 'package:cut_match_app/screens/admin/salon/admin_salon_list_screen.dart';
 import 'package:flutter/material.dart';
 
 class AdminHubScreen extends StatelessWidget {
