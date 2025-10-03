@@ -78,8 +78,8 @@
 
 ## 🔌 Backend API
 แอปพลิเคชันนี้ทำงานร่วมกับ **Cut Match API** ซึ่งเป็น Backend ที่สร้างด้วย Node.js, Express, และ MongoDB
-- **ดูโค้ดของ API: [https://github.com/Cha-Khiao/cut-match-api.git]**
-- **ดูเอกสาร API (Swagger): [https://cut-match-api.vercel.app/api-docs]**
+- **ดูโค้ดของ API: [https://cut-match-api.vercel.app/api](https://cut-match-api.vercel.app)**
+- **ดูเอกสาร API (Swagger): [https://cut-match-api.vercel.app/api-docs](https://cut-match-api.vercel.app/api-docs)**
 ---
 
 ## 🚀 การติดตั้งและรันโปรเจค (Getting Started)
