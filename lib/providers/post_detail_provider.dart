@@ -41,7 +41,7 @@ class PostDetailProvider with ChangeNotifier {
   Future<void> createComment(String text) async {
     await ApiService.createComment(post.id, text, token);
     feedProvider.incrementCommentCount(post.id);
-    await fetchComments(); // โหลดคอมเมนต์ใหม่ทั้งหมด
+    await fetchComments();
   }
 
   Future<void> replyToComment(String parentCommentId, String text) async {
