@@ -2,6 +2,8 @@ import 'package:cut_match_app/api/api_service.dart';
 import 'package:cut_match_app/models/salon_model.dart';
 import 'package:cut_match_app/providers/auth_provider.dart';
 import 'package:cut_match_app/screens/admin/salon/admin_salon_form_screen.dart';
+import 'package:cut_match_app/utils/app_theme.dart';
+import 'package:cut_match_app/utils/notification_helper.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -27,6 +29,35 @@ class _AdminSalonListScreenState extends State<AdminSalonListScreen> {
       setState(() {
         _salonsFuture = ApiService.getSalons(token);
       });
+    } else {
+      _salonsFuture = Future.value([]);
+    }
+  }
+
+  Future<void> _confirmDelete(String id) async {
+    final bool? confirm = await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('ยืนยันการลบ'),
+        content: const Text('คุณแน่ใจหรือไม่ว่าต้องการลบร้านตัดผมนี้?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('ยกเลิก'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(
+              'ลบ',
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      await _deleteSalon(id);
     }
   }
 
@@ -35,75 +66,111 @@ class _AdminSalonListScreenState extends State<AdminSalonListScreen> {
     if (token == null) return;
     try {
       await ApiService.deleteSalon(id, token);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Salon deleted successfully')),
+      NotificationHelper.showSuccess(
+        context,
+        message: 'ลบร้านตัดผมเรียบร้อยแล้ว',
       );
       _loadSalons();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Failed to delete: $e')));
+        NotificationHelper.showError(context, message: 'ลบไม่สำเร็จ: $e');
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('Manage Salons')),
-      body: FutureBuilder<List<Salon>>(
-        future: _salonsFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError ||
-              !snapshot.hasData ||
-              snapshot.data!.isEmpty) {
-            return const Center(child: Text('No salons found.'));
-          }
-          final salons = snapshot.data!;
-          return ListView.builder(
-            itemCount: salons.length,
-            itemBuilder: (context, index) {
-              final salon = salons[index];
-              return ListTile(
-                leading: const Icon(Icons.storefront),
-                title: Text(salon.name),
-                subtitle: Text(salon.address),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
+      backgroundColor: theme.scaffoldBackgroundColor,
+      appBar: AppBar(title: const Text('จัดการร้านตัดผม')),
+      body: RefreshIndicator(
+        onRefresh: () async => _loadSalons(),
+        child: FutureBuilder<List<Salon>>(
+          future: _salonsFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (snapshot.hasError ||
+                !snapshot.hasData ||
+                snapshot.data!.isEmpty) {
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    IconButton(
-                      icon: const Icon(Icons.edit),
-                      onPressed: () =>
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) =>
-                                  AdminSalonFormScreen(salon: salon),
-                            ),
-                          ).then((result) {
-                            if (result == true) {
-                              _loadSalons();
-                            }
-                          }),
+                    const Icon(
+                      Icons.store_mall_directory_outlined,
+                      size: 80,
+                      color: AppTheme.lightText,
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.delete, color: Colors.red),
-                      onPressed: () => _deleteSalon(salon.id),
+                    const SizedBox(height: 16),
+                    Text(
+                      'ไม่พบข้อมูลร้านตัดผม',
+                      style: theme.textTheme.headlineSmall,
                     ),
                   ],
                 ),
               );
-            },
-          );
-        },
+            }
+            final salons = snapshot.data!;
+            return ListView.separated(
+              itemCount: salons.length,
+              separatorBuilder: (context, index) => const Divider(height: 1),
+              itemBuilder: (context, index) {
+                final salon = salons[index];
+                return ListTile(
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  leading: const CircleAvatar(
+                    backgroundColor: AppTheme.background,
+                    child: Icon(
+                      Icons.storefront_outlined,
+                      color: AppTheme.accent,
+                    ),
+                  ),
+                  title: Text(salon.name, style: theme.textTheme.titleMedium),
+                  subtitle: Text(
+                    salon.address,
+                    style: theme.textTheme.bodyMedium,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.edit_outlined),
+                        onPressed: () =>
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    AdminSalonFormScreen(salon: salon),
+                              ),
+                            ).then((result) {
+                              if (result == true) _loadSalons();
+                            }),
+                      ),
+                      IconButton(
+                        icon: Icon(
+                          Icons.delete_outline,
+                          color: theme.colorScheme.error,
+                        ),
+                        onPressed: () => _confirmDelete(salon.id),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            );
+          },
+        ),
       ),
       floatingActionButton: FloatingActionButton(
-        // --- ✨ แก้ไขตรงนี้ ✨ ---
-        heroTag: 'add_salon_fab',
+        tooltip: 'เพิ่มร้านตัดผมใหม่',
         onPressed: () =>
             Navigator.push(
               context,
