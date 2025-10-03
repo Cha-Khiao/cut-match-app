@@ -1,249 +1,357 @@
+import 'dart:io';
 import 'package:cut_match_app/api/api_service.dart';
+import 'package:cut_match_app/models/hairstyle_model.dart';
 import 'package:cut_match_app/models/post_model.dart';
+import 'package:cut_match_app/models/user_model.dart';
 import 'package:cut_match_app/providers/auth_provider.dart';
-import 'package:cut_match_app/screens/post_detail_screen.dart';
+import 'package:cut_match_app/providers/feed_provider.dart';
+import 'package:cut_match_app/providers/profile_provider.dart';
+import 'package:cut_match_app/screens/photos/photo_viewer_screen.dart';
+import 'package:cut_match_app/screens/social/posts/post_detail_screen.dart';
+import 'package:cut_match_app/utils/app_theme.dart';
+import 'package:cut_match_app/utils/notification_helper.dart';
+import 'package:cut_match_app/widgets/hairstyle_card.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-class ProfileScreen extends StatefulWidget {
+class ProfileScreen extends StatelessWidget {
   final String? userId;
   const ProfileScreen({super.key, this.userId});
 
   @override
-  State<ProfileScreen> createState() => _ProfileScreenState();
+  Widget build(BuildContext context) {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final targetUserId = userId ?? authProvider.user!.id;
+
+    return ChangeNotifierProvider(
+      create: (_) =>
+          ProfileProvider(userId: targetUserId, token: authProvider.token),
+      child: const _ProfileScreenView(),
+    );
+  }
 }
 
-class _ProfileScreenState extends State<ProfileScreen> {
-  Future<Map<String, dynamic>>? _profileFuture;
-  Future<List<Post>>? _postsFuture;
+class _ProfileScreenView extends StatelessWidget {
+  const _ProfileScreenView();
 
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _fetchProfileData();
-    });
-  }
-
-  void _fetchProfileData() {
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final targetUserId = widget.userId ?? authProvider.user?.id;
-
-    if (targetUserId != null && mounted) {
-      setState(() {
-        _profileFuture = ApiService.getUserPublicProfile(targetUserId);
-        _postsFuture = ApiService.getUserPosts(
-          targetUserId,
-          authProvider.token!,
-        );
-      });
-    }
-  }
-
-  Future<void> _pickAndUploadImage(
-    BuildContext context,
-    AuthProvider authProvider,
-  ) async {
-    // Add image picker logic here if needed
-  }
-
-  void _showPostOptions(BuildContext context, Post post) {
-    // Add post options logic here if needed
+  void _confirmLogout(BuildContext context, AuthProvider authProvider) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('ออกจากระบบ'),
+        content: const Text('คุณต้องการออกจากระบบใช่หรือไม่?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('ยกเลิก'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              authProvider.logout().then(
+                (_) => Navigator.of(
+                  context,
+                ).pushNamedAndRemoveUntil('/welcome', (route) => false),
+              );
+            },
+            child: Text(
+              'ออกจากระบบ',
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final profileProvider = context.watch<ProfileProvider>();
+    final authProvider = context.watch<AuthProvider>();
+    final isMyProfile = profileProvider.userId == authProvider.user?.id;
+    final theme = Theme.of(context);
+
     return Scaffold(
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        title: FutureBuilder<Map<String, dynamic>>(
-          future: _profileFuture,
-          builder: (context, snapshot) {
-            final isMyProfile =
-                widget.userId == null ||
-                widget.userId == context.watch<AuthProvider>().user?.id;
-            if (snapshot.hasData) {
-              return Text(snapshot.data!['username'] ?? 'Profile');
-            }
-            return Text(isMyProfile ? 'My Profile' : 'Profile');
-          },
+        title: Text(
+          profileProvider.isLoading
+              ? (isMyProfile ? 'My Profile' : 'Profile')
+              : profileProvider.user?.username ?? '...',
         ),
-      ),
-      body: FutureBuilder<Map<String, dynamic>>(
-        future: _profileFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError || !snapshot.hasData) {
-            return Center(
-              child: Text('Failed to load profile: ${snapshot.error}'),
-            );
-          }
-
-          final profileData = snapshot.data!;
-          final authProvider = context.watch<AuthProvider>();
-          final isMyProfile =
-              widget.userId == null || widget.userId == authProvider.user?.id;
-
-          return NestedScrollView(
-            headerSliverBuilder: (context, innerBoxIsScrolled) => [
-              SliverToBoxAdapter(
-                child: _buildProfileHeaderSection(
-                  context,
-                  authProvider,
-                  profileData,
-                  isMyProfile,
-                ),
-              ),
-            ],
-            body: _buildPostsGrid(isMyProfile),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildProfileHeaderSection(
-    BuildContext context,
-    AuthProvider authProvider,
-    Map<String, dynamic> profileData,
-    bool isMyProfile,
-  ) {
-    final targetUserId = profileData['_id'] as String;
-
-    // ✅ ป้องกัน type error ที่อาจเกิดจากการ cast ผิดชนิด
-    final salonNameRaw = profileData['salonName'];
-    final salonMapUrlRaw = profileData['salonMapUrl'];
-
-    final salonName = salonNameRaw is String ? salonNameRaw : '';
-    final salonMapUrl = salonMapUrlRaw is String ? salonMapUrlRaw : '';
-
-    final isFollowing = authProvider.isFollowing(targetUserId);
-
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        children: [
-          _buildProfileHeader(context, authProvider, profileData, isMyProfile),
-          const SizedBox(height: 16),
-          Text(
-            profileData['username'] ?? 'No Name',
-            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 16),
-          _buildStatRow(profileData),
-          const SizedBox(height: 16),
-          _buildActionButtons(
-            context,
-            authProvider,
-            isMyProfile,
-            isFollowing,
-            targetUserId,
-          ),
-          const SizedBox(height: 16),
-          if (salonMapUrl.isNotEmpty)
-            _buildSalonCard(context, salonName, salonMapUrl),
-          if (isMyProfile) _buildMyProfileMenu(context),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildProfileHeader(
-    BuildContext context,
-    AuthProvider authProvider,
-    Map<String, dynamic> profileData,
-    bool isMyProfile,
-  ) {
-    final imageUrl = profileData['profileImageUrl'] as String?;
-    return Center(
-      child: Stack(
-        children: [
-          CircleAvatar(
-            radius: 50,
-            backgroundImage: (imageUrl != null && imageUrl.isNotEmpty)
-                ? NetworkImage(imageUrl)
-                : null,
-            child: (imageUrl == null || imageUrl.isEmpty)
-                ? const Icon(Icons.person, size: 50)
-                : null,
-          ),
+        actions: [
           if (isMyProfile)
-            Positioned(
-              bottom: 0,
-              right: 0,
-              child: CircleAvatar(
-                radius: 18,
-                backgroundColor: Theme.of(context).colorScheme.primary,
-                child: IconButton(
-                  icon: const Icon(
-                    Icons.camera_alt,
-                    color: Colors.white,
-                    size: 18,
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert),
+              onSelected: (value) {
+                if (value == 'edit') {
+                  Navigator.pushNamed(
+                    context,
+                    '/edit_profile',
+                  ).then((_) => profileProvider.fetchProfileData());
+                } else if (value == 'about') {
+                  Navigator.pushNamed(context, '/about');
+                } else if (value == 'logout') {
+                  _confirmLogout(context, authProvider);
+                }
+              },
+              itemBuilder: (BuildContext ctx) => <PopupMenuEntry<String>>[
+                const PopupMenuItem<String>(
+                  value: 'edit',
+                  child: ListTile(
+                    leading: Icon(Icons.edit_outlined),
+                    title: Text('แก้ไขโปรไฟล์'),
                   ),
-                  onPressed: () => _pickAndUploadImage(context, authProvider),
                 ),
-              ),
+                const PopupMenuItem<String>(
+                  value: 'about',
+                  child: ListTile(
+                    leading: Icon(Icons.info_outline),
+                    title: Text('เกี่ยวกับแอปพลิเคชัน'),
+                  ),
+                ),
+                const PopupMenuDivider(),
+                PopupMenuItem<String>(
+                  value: 'logout',
+                  child: ListTile(
+                    leading: Icon(Icons.logout, color: theme.colorScheme.error),
+                    title: Text(
+                      'ออกจากระบบ',
+                      style: TextStyle(color: theme.colorScheme.error),
+                    ),
+                  ),
+                ),
+              ],
             ),
         ],
       ),
+      body: profileProvider.isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : profileProvider.errorMessage != null
+          ? Center(
+              child: Text('เกิดข้อผิดพลาด: ${profileProvider.errorMessage}'),
+            )
+          : _buildProfileBody(
+              context,
+              profileProvider,
+              authProvider,
+              isMyProfile,
+            ),
     );
   }
 
-  Widget _buildStatRow(Map<String, dynamic> profileData) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+  Widget _buildProfileBody(
+    BuildContext context,
+    ProfileProvider profileProvider,
+    AuthProvider authProvider,
+    bool isMyProfile,
+  ) {
+    return DefaultTabController(
+      length: isMyProfile ? 3 : 1,
+      child: NestedScrollView(
+        headerSliverBuilder: (context, innerBoxIsScrolled) => [
+          SliverToBoxAdapter(
+            child: _ProfileHeader(
+              user: profileProvider.user!,
+              authProvider: authProvider,
+              isMyProfile: isMyProfile,
+              onProfileUpdate: profileProvider.fetchProfileData,
+            ),
+          ),
+          SliverPersistentHeader(
+            delegate: _SliverTabBarDelegate(
+              TabBar(
+                tabs: [
+                  const Tab(icon: Icon(Icons.grid_on_outlined), text: 'โพสต์'),
+                  if (isMyProfile)
+                    const Tab(
+                      icon: Icon(Icons.favorite_outline),
+                      text: 'ถูกใจ',
+                    ),
+                  if (isMyProfile)
+                    const Tab(
+                      icon: Icon(Icons.bookmark_border_outlined),
+                      text: 'บันทึกไว้',
+                    ),
+                ],
+                indicatorColor: AppTheme.primary,
+                labelColor: AppTheme.primary,
+                unselectedLabelColor: AppTheme.lightText,
+              ),
+            ),
+            pinned: true,
+          ),
+        ],
+        body: TabBarView(
+          children: [
+            _PostsGrid(posts: profileProvider.posts),
+            if (isMyProfile)
+              _FavoriteHairstylesGrid(authProvider: authProvider),
+            if (isMyProfile) _SavedLooksGrid(looks: authProvider.savedLooks),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ProfileHeader extends StatelessWidget {
+  final User user;
+  final AuthProvider authProvider;
+  final bool isMyProfile;
+  final VoidCallback onProfileUpdate;
+
+  const _ProfileHeader({
+    required this.user,
+    required this.authProvider,
+    required this.isMyProfile,
+    required this.onProfileUpdate,
+  });
+
+  Future<void> _pickAndUploadImage(BuildContext context) async {
+    final feedProvider = Provider.of<FeedProvider>(context, listen: false);
+    final picker = ImagePicker();
+    final image = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 70,
+    );
+
+    if (image != null && context.mounted) {
+      final success = await authProvider.updateProfile(
+        imageFile: File(image.path),
+        feedProvider: feedProvider,
+      );
+      if (success) {
+        onProfileUpdate();
+      } else if (context.mounted) {
+        NotificationHelper.showError(
+          context,
+          message: authProvider.errorMessage ?? 'อัปเดตโปรไฟล์ไม่สำเร็จ',
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Stack(
+                children: [
+                  CircleAvatar(
+                    radius: 45,
+                    backgroundColor: AppTheme.background,
+                    backgroundImage: user.profileImageUrl.isNotEmpty
+                        ? NetworkImage(user.profileImageUrl)
+                        : null,
+                    child: user.profileImageUrl.isEmpty
+                        ? const Icon(
+                            Icons.person,
+                            size: 45,
+                            color: AppTheme.lightText,
+                          )
+                        : null,
+                  ),
+                  if (isMyProfile)
+                    Positioned(
+                      bottom: 0,
+                      right: 0,
+                      child: GestureDetector(
+                        onTap: () => _pickAndUploadImage(context),
+                        child: const CircleAvatar(
+                          radius: 15,
+                          backgroundColor: AppTheme.primary,
+                          child: Icon(
+                            Icons.edit,
+                            color: Colors.white,
+                            size: 16,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    _buildStatColumn(context, 'โพสต์', user.postCount ?? 0),
+                    _buildStatColumn(
+                      context,
+                      'ผู้ติดตาม',
+                      user.followerCount ?? 0,
+                    ),
+                    _buildStatColumn(
+                      context,
+                      'กำลังติดตาม',
+                      user.followingCount ?? 0,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text(user.username, style: theme.textTheme.titleLarge),
+          const SizedBox(height: 16),
+          _buildActionButtons(context),
+          if (user.salonName.isNotEmpty && user.salonMapUrl.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 16.0),
+              child: _buildSalonCard(context, user.salonName, user.salonMapUrl),
+            ),
+          const SizedBox(height: 16),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatColumn(BuildContext context, String label, int count) {
+    final theme = Theme.of(context);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        _buildStatColumn('Posts', profileData['postCount'] ?? 0),
-        _buildStatColumn('Followers', profileData['followerCount'] ?? 0),
-        _buildStatColumn('Following', profileData['followingCount'] ?? 0),
+        Text(
+          count.toString(),
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(label, style: theme.textTheme.bodyMedium),
       ],
     );
   }
 
-  Widget _buildActionButtons(
-    BuildContext context,
-    AuthProvider authProvider,
-    bool isMyProfile,
-    bool isFollowing,
-    String targetUserId,
-  ) {
+  Widget _buildActionButtons(BuildContext context) {
     if (isMyProfile) {
-      return Row(
-        children: [
-          Expanded(
-            child: OutlinedButton(
-              onPressed: () => Navigator.pushNamed(
-                context,
-                '/edit_profile',
-              ).then((_) => _fetchProfileData()),
-              child: const Text('Edit Profile'),
-            ),
-          ),
-          const SizedBox(width: 8),
-          OutlinedButton(
-            onPressed: () => authProvider.logout().then(
-              (_) => Navigator.of(
-                context,
-              ).pushNamedAndRemoveUntil('/welcome', (route) => false),
-            ),
-            child: const Text('Logout'),
-          ),
-        ],
-      );
+      return const SizedBox.shrink();
     } else {
+      final isFollowing = authProvider.isFollowing(user.id);
       return SizedBox(
         width: double.infinity,
-        child: ElevatedButton(
-          onPressed: () => authProvider
-              .toggleFollow(targetUserId)
-              .then((_) => _fetchProfileData()),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: isFollowing ? Colors.grey : Colors.blueAccent,
-          ),
-          child: Text(isFollowing ? 'Unfollow' : 'Follow'),
-        ),
+        child: isFollowing
+            ? OutlinedButton(
+                onPressed: () => authProvider
+                    .toggleFollow(user.id)
+                    .then((_) => onProfileUpdate()),
+                child: const Text('กำลังติดตาม'),
+              )
+            : ElevatedButton(
+                onPressed: () => authProvider
+                    .toggleFollow(user.id)
+                    .then((_) => onProfileUpdate()),
+                child: const Text('ติดตาม'),
+              ),
       );
     }
   }
@@ -254,100 +362,167 @@ class _ProfileScreenState extends State<ProfileScreen> {
     String salonMapUrl,
   ) {
     return Card(
+      margin: EdgeInsets.zero,
+      elevation: 0,
+      color: AppTheme.background,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: Colors.grey.shade300),
+      ),
       child: ListTile(
-        leading: const Icon(Icons.location_on, color: Colors.red),
-        title: Text(salonName),
-        subtitle: const Text('Tap to view on map'),
+        leading: const Icon(Icons.storefront_outlined, color: AppTheme.primary),
+        title: Text(
+          salonName,
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        subtitle: const Text('ดูตำแหน่งบนแผนที่'),
         trailing: const Icon(Icons.open_in_new),
         onTap: () async {
           final Uri url = Uri.parse(salonMapUrl);
           if (await canLaunchUrl(url)) {
             await launchUrl(url, mode: LaunchMode.externalApplication);
-          } else {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Could not launch map')),
-              );
-            }
+          } else if (context.mounted) {
+            NotificationHelper.showError(
+              context,
+              message: 'ไม่สามารถเปิดแผนที่ได้',
+            );
           }
         },
       ),
     );
   }
+}
 
-  Widget _buildMyProfileMenu(BuildContext context) {
-    return Column(
-      children: [
-        const Divider(),
-        ListTile(
-          leading: const Icon(Icons.favorite),
-          title: const Text('My Favorites'),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: () => Navigator.pushNamed(context, '/favorites'),
-        ),
-        ListTile(
-          leading: const Icon(Icons.style),
-          title: const Text('My Saved Looks'),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: () => Navigator.pushNamed(context, '/saved_looks'),
-        ),
-      ],
+class _PostsGrid extends StatelessWidget {
+  final List<Post> posts;
+  const _PostsGrid({required this.posts});
+
+  @override
+  Widget build(BuildContext context) {
+    if (posts.isEmpty) {
+      return const Center(child: Text('ยังไม่มีโพสต์'));
+    }
+    return GridView.builder(
+      padding: const EdgeInsets.all(2),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,
+        crossAxisSpacing: 2,
+        mainAxisSpacing: 2,
+      ),
+      itemCount: posts.length,
+      itemBuilder: (context, index) {
+        final post = posts[index];
+        if (post.imageUrls.isEmpty) {
+          return Container(color: Colors.grey.shade300);
+        }
+        return GestureDetector(
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => PostDetailScreen(post: post)),
+          ),
+          child: Image.network(post.imageUrls.first, fit: BoxFit.cover),
+        );
+      },
     );
   }
+}
 
-  Widget _buildPostsGrid(bool isMyProfile) {
-    return FutureBuilder<List<Post>>(
-      future: _postsFuture,
-      builder: (context, postSnapshot) {
-        if (postSnapshot.connectionState == ConnectionState.waiting) {
+class _FavoriteHairstylesGrid extends StatelessWidget {
+  final AuthProvider authProvider;
+  const _FavoriteHairstylesGrid({required this.authProvider});
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<List<Hairstyle>>(
+      future: ApiService.getFavorites(authProvider.token!),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
-        if (!postSnapshot.hasData || postSnapshot.data!.isEmpty) {
-          return const Center(child: Text('No posts yet.'));
+        if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
+          return const Center(child: Text('ยังไม่มีทรงผมที่ถูกใจ'));
         }
-        final posts = postSnapshot.data!;
+        final favoriteHairstyles = snapshot.data!;
         return GridView.builder(
-          padding: const EdgeInsets.all(2),
+          padding: const EdgeInsets.all(16),
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 3,
-            crossAxisSpacing: 2,
-            mainAxisSpacing: 2,
+            crossAxisCount: 2,
+            crossAxisSpacing: 16,
+            mainAxisSpacing: 16,
+            childAspectRatio: 0.75,
           ),
-          itemCount: posts.length,
+          itemCount: favoriteHairstyles.length,
           itemBuilder: (context, index) {
-            final post = posts[index];
-            if (post.imageUrls.isEmpty) {
-              return Container(color: Colors.grey.shade300);
-            }
-            return GestureDetector(
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => PostDetailScreen(post: post)),
-              ),
-              onLongPress: () {
-                if (isMyProfile) {
-                  _showPostOptions(context, post);
-                }
-              },
-              child: Image.network(post.imageUrls.first, fit: BoxFit.cover),
-            );
+            return HairstyleCard(hairstyle: favoriteHairstyles[index]);
           },
         );
       },
     );
   }
+}
 
-  Widget _buildStatColumn(String label, int count) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          count.toString(),
-          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 4),
-        Text(label, style: const TextStyle(color: Colors.grey)),
-      ],
+class _SavedLooksGrid extends StatelessWidget {
+  final List<String> looks;
+  const _SavedLooksGrid({required this.looks});
+
+  @override
+  Widget build(BuildContext context) {
+    if (looks.isEmpty) {
+      return const Center(child: Text('ยังไม่มีรูปภาพที่บันทึกไว้'));
+    }
+    return GridView.builder(
+      padding: const EdgeInsets.all(8),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,
+        crossAxisSpacing: 8,
+        mainAxisSpacing: 8,
+      ),
+      itemCount: looks.length,
+      itemBuilder: (context, index) {
+        final imageUrl = looks[index];
+        return GestureDetector(
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => PhotoViewerScreen(imageUrl: imageUrl),
+            ),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12.0),
+            child: Image.network(imageUrl, fit: BoxFit.cover),
+          ),
+        );
+      },
     );
   }
+}
+
+class _SliverTabBarDelegate extends SliverPersistentHeaderDelegate {
+  _SliverTabBarDelegate(this._tabBar);
+  final TabBar _tabBar;
+
+  @override
+  double get minExtent => _tabBar.preferredSize.height;
+  @override
+  double get maxExtent => _tabBar.preferredSize.height;
+
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).scaffoldBackgroundColor,
+        border: Border(
+          bottom: BorderSide(color: Colors.grey.shade300, width: 1),
+        ),
+      ),
+      child: _tabBar,
+    );
+  }
+
+  @override
+  bool shouldRebuild(SliverPersistentHeaderDelegate oldDelegate) => false;
 }
