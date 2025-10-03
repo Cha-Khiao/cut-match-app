@@ -1,14 +1,12 @@
 import 'package:cut_match_app/api/api_service.dart';
 import 'package:cut_match_app/models/salon_model.dart';
 import 'package:cut_match_app/providers/auth_provider.dart';
+import 'package:cut_match_app/widgets/custom_textfield.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 class AdminSalonFormScreen extends StatefulWidget {
-  // --- ✨ แก้ไขส่วนนี้: รับ salon object เข้ามา ✨ ---
   final Salon? salon;
-
   const AdminSalonFormScreen({super.key, this.salon});
 
   @override
@@ -35,7 +33,9 @@ class _AdminSalonFormScreenState extends State<AdminSalonFormScreen> {
     _addressController = TextEditingController(
       text: isEditing ? widget.salon!.address : '',
     );
-    _phoneController = TextEditingController(text: ''); // Phone is optional
+    _phoneController = TextEditingController(
+      text: isEditing ? widget.salon!.phone : '',
+    );
     _latController = TextEditingController(
       text: isEditing ? widget.salon!.location.latitude.toString() : '',
     );
@@ -75,10 +75,11 @@ class _AdminSalonFormScreenState extends State<AdminSalonFormScreen> {
         }
         if (mounted) Navigator.of(context).pop(true);
       } catch (e) {
-        if (mounted)
+        if (mounted) {
           ScaffoldMessenger.of(
             context,
-          ).showSnackBar(SnackBar(content: Text('Error: $e')));
+          ).showSnackBar(SnackBar(content: Text('เกิดข้อผิดพลาด: $e')));
+        }
       } finally {
         if (mounted) setState(() => _isLoading = false);
       }
@@ -87,47 +88,78 @@ class _AdminSalonFormScreenState extends State<AdminSalonFormScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Scaffold(
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        title: Text(widget.salon == null ? 'Add Salon' : 'Edit Salon'),
+        title: Text(widget.salon == null ? 'เพิ่มร้านตัดผม' : 'แก้ไขร้านตัดผม'),
       ),
       body: Form(
         key: _formKey,
         child: ListView(
           padding: const EdgeInsets.all(16.0),
           children: [
-            TextFormField(
+            CustomTextField(
               controller: _nameController,
-              decoration: const InputDecoration(labelText: 'Salon Name'),
-              validator: (v) => v!.isEmpty ? 'Required' : null,
+              hintText: 'ชื่อร้านตัดผม',
+              icon: Icons.storefront_outlined,
+              validator: (v) => v!.isEmpty ? 'กรุณากรอกชื่อร้าน' : null,
             ),
-            TextFormField(
+            const SizedBox(height: 16),
+            CustomTextField(
               controller: _addressController,
-              decoration: const InputDecoration(labelText: 'Address'),
-              validator: (v) => v!.isEmpty ? 'Required' : null,
+              hintText: 'ที่อยู่',
+              icon: Icons.location_on_outlined,
+              validator: (v) => v!.isEmpty ? 'กรุณากรอกที่อยู่' : null,
             ),
-            TextFormField(
+            const SizedBox(height: 16),
+            CustomTextField(
               controller: _phoneController,
-              decoration: const InputDecoration(labelText: 'Phone (Optional)'),
+              hintText: 'เบอร์โทรศัพท์ (ไม่บังคับ)',
+              icon: Icons.phone_outlined,
+              keyboardType: TextInputType.phone,
             ),
-            TextFormField(
-              controller: _latController,
-              decoration: const InputDecoration(labelText: 'Latitude'),
-              keyboardType: TextInputType.number,
-              validator: (v) => v!.isEmpty ? 'Required' : null,
-            ),
-            TextFormField(
-              controller: _lngController,
-              decoration: const InputDecoration(labelText: 'Longitude'),
-              keyboardType: TextInputType.number,
-              validator: (v) => v!.isEmpty ? 'Required' : null,
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: CustomTextField(
+                    controller: _latController,
+                    hintText: 'ละติจูด',
+                    icon: Icons.map_outlined,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    validator: (v) => v!.isEmpty ? 'Required' : null,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: CustomTextField(
+                    controller: _lngController,
+                    hintText: 'ลองจิจูด',
+                    icon: Icons.map_outlined,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    validator: (v) => v!.isEmpty ? 'Required' : null,
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 24),
             ElevatedButton(
               onPressed: _isLoading ? null : _submitForm,
               child: _isLoading
-                  ? const CircularProgressIndicator()
-                  : const Text('Save Salon'),
+                  ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 3,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Text('บันทึกข้อมูลร้านตัดผม'),
             ),
           ],
         ),
