@@ -10,12 +10,9 @@ import 'package:cut_match_app/models/user_model.dart';
 import 'package:http/http.dart' as http;
 
 class ApiService {
-  static const String _baseUrl = 'https://cut-match-api.onrender.com/api';
+  static const String _baseUrl = 'https://cut-match-api.vercel.app/api';
 
-  //============================================
   // Auth Functions (No Token Required)
-  //============================================
-
   static Future<Map<String, dynamic>> register(
     String username,
     String email,
@@ -53,34 +50,22 @@ class ApiService {
       body: jsonEncode({'email': email, 'password': password}),
     );
 
-    // --- ✨ เพิ่มโค้ด 3 บรรทัดนี้เข้ามาเพื่อ Debug ✨ ---
-    print('--- RAW JSON RESPONSE FROM LOGIN ---');
-    print(response.body);
-    print('------------------------------------');
-    // ------------------------------------------
-
     final body = jsonDecode(response.body);
     if (response.statusCode == 200) {
-      return body; // Success
+      return body;
     } else {
       throw Exception(body['message'] ?? 'Failed to login');
     }
   }
 
-  //============================================
   // Public Functions (No Token Required)
-  //============================================
-
   static Future<List<Hairstyle>> getHairstyles({
     String? gender,
     String? search,
     String? tags,
   }) async {
     try {
-      // สร้าง URI object
       var uri = Uri.parse('$_baseUrl/hairstyles');
-
-      // สร้าง Map สำหรับเก็บ query parameters
       final Map<String, String> queryParams = {};
       if (gender != null && gender.isNotEmpty) {
         queryParams['gender'] = gender;
@@ -91,7 +76,6 @@ class ApiService {
       if (tags != null && tags.isNotEmpty) {
         queryParams['tags'] = tags;
       }
-      // เพิ่ม query parameters เข้าไปใน URI ถ้ามี
       if (queryParams.isNotEmpty) {
         uri = uri.replace(queryParameters: queryParams);
       }
@@ -109,10 +93,7 @@ class ApiService {
     }
   }
 
-  //============================================
   // Protected User Functions (Token Required)
-  //============================================
-
   static Future<List<Hairstyle>> getFavorites(String token) async {
     final response = await http.get(
       Uri.parse('$_baseUrl/users/favorites'),
@@ -152,10 +133,7 @@ class ApiService {
     }
   }
 
-  //============================================
   // Admin Functions (Token Required)
-  //============================================
-
   static Future<Hairstyle> createHairstyle(
     Map<String, dynamic> data,
     String token,
@@ -257,23 +235,15 @@ class ApiService {
       'PUT',
       Uri.parse('$_baseUrl/users/profile'),
     );
-
-    // Add headers
     request.headers['Authorization'] = 'Bearer $token';
-
-    // Add text fields
     if (username != null) request.fields['username'] = username;
     if (email != null) request.fields['email'] = email;
     if (password != null) request.fields['password'] = password;
-    // สามารถเพิ่ม password ได้ถ้าต้องการ
-
-    // Add image file
+    if (salonName != null) request.fields['salonName'] = salonName;
+    if (salonMapUrl != null) request.fields['salonMapUrl'] = salonMapUrl;
     if (imageFile != null) {
       request.files.add(
-        await http.MultipartFile.fromPath(
-          'profileImage', // ชื่อ field นี้ต้องตรงกับใน uploadMiddleware ของ API
-          imageFile.path,
-        ),
+        await http.MultipartFile.fromPath('profileImage', imageFile.path),
       );
     }
 
@@ -388,7 +358,6 @@ class ApiService {
     if (response.statusCode != 200) throw Exception('Failed to unfollow user');
   }
 
-  // --- ✨ เพิ่มฟังก์ชันนี้ ✨ ---
   static Future<Post> likePost(String postId, String token) async {
     final response = await http.post(
       Uri.parse('$_baseUrl/posts/$postId/like'),
@@ -401,25 +370,20 @@ class ApiService {
     }
   }
 
-  // ...
   static Future<Post> createPost({
     required String token,
     String? text,
-    List<File>? imageFiles, // <-- ✨ แก้ไข
+    List<File>? imageFiles,
   }) async {
     var request = http.MultipartRequest('POST', Uri.parse('$_baseUrl/posts'));
     request.headers['Authorization'] = 'Bearer $token';
 
     if (text != null) request.fields['text'] = text;
 
-    // --- ✨ วนลูปเพื่อเพิ่มไฟล์ทั้งหมด ✨ ---
     if (imageFiles != null && imageFiles.isNotEmpty) {
       for (var imageFile in imageFiles) {
         request.files.add(
-          await http.MultipartFile.fromPath(
-            'postImages',
-            imageFile.path,
-          ), // ชื่อ field ต้องตรงกับ API
+          await http.MultipartFile.fromPath('postImages', imageFile.path),
         );
       }
     }
@@ -434,7 +398,6 @@ class ApiService {
     }
   }
 
-  // --- ✨ Comment System Functions ✨ ---
   static Future<List<Comment>> getComments(String postId, String token) async {
     final response = await http.get(
       Uri.parse('$_baseUrl/posts/$postId/comments'),
@@ -468,7 +431,6 @@ class ApiService {
     }
   }
 
-  // --- ✨ เพิ่ม 3 ฟังก์ชันนี้เข้ามา ✨ ---
   static Future<Comment> replyToComment(
     String parentCommentId,
     String text,
@@ -519,7 +481,6 @@ class ApiService {
     }
   }
 
-  // --- ✨ เพิ่ม 2 ฟังก์ชันนี้เข้ามา ✨ ---
   static Future<Post> updatePost({
     required String token,
     required String postId,
@@ -550,7 +511,6 @@ class ApiService {
     }
   }
 
-  // --- ✨ เพิ่มฟังก์ชันนี้เข้ามา ✨ ---
   static Future<List<User>> searchUsers(String query, String token) async {
     final response = await http.get(
       Uri.parse('$_baseUrl/users/search?q=$query'),
@@ -564,7 +524,6 @@ class ApiService {
     }
   }
 
-  // --- Salon Finder Functions ---
   static Future<List<Salon>> findNearbySalons(
     double lat,
     double lng, {
@@ -653,7 +612,7 @@ class ApiService {
     }
   }
 
-  // --- ✨ Notification Functions ✨ ---
+  // --- Notification Functions ---
   static Future<List<NotificationModel>> getNotifications(String token) async {
     final response = await http.get(
       Uri.parse('$_baseUrl/notifications'),
@@ -679,7 +638,6 @@ class ApiService {
     }
   }
 
-  // --- ✨ เพิ่มฟังก์ชันนี้ ✨ ---
   static Future<void> deleteNotification(
     String notificationId,
     String token,
@@ -690,6 +648,16 @@ class ApiService {
     );
     if (response.statusCode != 200) {
       throw Exception('Failed to delete notification');
+    }
+  }
+
+  static Future<void> deleteUserAccount(String token) async {
+    final response = await http.delete(
+      Uri.parse('$_baseUrl/users/profile'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    if (response.statusCode != 200) {
+      throw Exception('Failed to delete account');
     }
   }
 }
