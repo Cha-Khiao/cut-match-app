@@ -1,5 +1,6 @@
 import 'package:cut_match_app/providers/auth_provider.dart';
 import 'package:cut_match_app/providers/feed_provider.dart';
+import 'package:cut_match_app/providers/hairstyle_provider.dart';
 import 'package:cut_match_app/providers/notification_provider.dart';
 import 'package:cut_match_app/screens/admin/admin_hub_screen.dart';
 import 'package:cut_match_app/screens/admin/hairstyles/admin_hairstyle_list_screen.dart';
@@ -18,15 +19,15 @@ import 'package:cut_match_app/screens/user_search_screen.dart';
 import 'package:cut_match_app/screens/virtual_try_on_screen.dart';
 import 'package:cut_match_app/screens/welcome_screen.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
-import 'package:overlay_support/overlay_support.dart'; // ✨ เพิ่มเพื่อรองรับแบนเนอร์แจ้งเตือน
+import 'package:overlay_support/overlay_support.dart';
 
 void main() {
   runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (_) => HairstyleProvider()),
         ChangeNotifierProxyProvider<AuthProvider, FeedProvider>(
           create: (_) => FeedProvider(),
           update: (_, auth, previous) => previous!..updateToken(auth.token),
@@ -46,27 +47,17 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // ✨ ห่อ MaterialApp ด้วย OverlaySupport เพื่อให้แสดงแบนเนอร์แจ้งเตือนได้
     return OverlaySupport.global(
       child: MaterialApp(
         title: 'Cut Match',
         debugShowCheckedModeBanner: false,
-        theme: ThemeData(
-          primarySwatch: Colors.blue,
-          scaffoldBackgroundColor: Colors.white,
-          textTheme: GoogleFonts.kanitTextTheme(Theme.of(context).textTheme),
-          appBarTheme: AppBarTheme(
-            titleTextStyle: GoogleFonts.kanit(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Colors.black,
-            ),
-          ),
-        ),
+        theme: AppTheme.lightTheme,
         home: const SplashScreen(),
         routes: {
+          '/onboarding': (context) => const OnboardingScreen(),
           '/welcome': (context) => const WelcomeScreen(),
-          '/auth': (context) => const AuthScreen(),
+          '/login': (context) => const LoginScreen(),
+          '/register': (context) => const RegisterScreen(),
           '/main': (context) => const MainScreen(),
           '/profile': (context) => const ProfileScreen(),
           '/edit_profile': (context) => const EditProfileScreen(),
