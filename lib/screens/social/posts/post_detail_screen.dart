@@ -1,30 +1,41 @@
-import 'package:cut_match_app/api/api_service.dart';
 import 'package:cut_match_app/models/comment_model.dart';
 import 'package:cut_match_app/models/post_model.dart';
 import 'package:cut_match_app/providers/auth_provider.dart';
 import 'package:cut_match_app/providers/feed_provider.dart';
+import 'package:cut_match_app/providers/post_detail_provider.dart';
 import 'package:cut_match_app/screens/profiles/profile_screen.dart';
+import 'package:cut_match_app/utils/app_theme.dart';
+import 'package:cut_match_app/utils/notification_helper.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:smooth_page_indicator/smooth_page_indicator.dart';
 
-class PostDetailScreen extends StatefulWidget {
+class PostDetailScreen extends StatelessWidget {
   final Post post;
   const PostDetailScreen({super.key, required this.post});
 
   @override
-  State<PostDetailScreen> createState() => _PostDetailScreenState();
+  Widget build(BuildContext context) {
+    return ChangeNotifierProvider(
+      create: (ctx) => PostDetailProvider(
+        post: post,
+        token: Provider.of<AuthProvider>(ctx, listen: false).token!,
+        feedProvider: Provider.of<FeedProvider>(ctx, listen: false),
+      ),
+      child: const _PostDetailScreenView(),
+    );
+  }
 }
 
-class _PostDetailScreenState extends State<PostDetailScreen> {
-  late Future<List<Comment>> _commentsFuture;
-  final TextEditingController _commentController = TextEditingController();
-  bool _isPosting = false;
+class _PostDetailScreenView extends StatefulWidget {
+  const _PostDetailScreenView();
 
   @override
-  void initState() {
-    super.initState();
-    _loadComments();
-  }
+  State<_PostDetailScreenView> createState() => _PostDetailScreenViewState();
+}
+
+class _PostDetailScreenViewState extends State<_PostDetailScreenView> {
+  final _commentController = TextEditingController();
 
   @override
   void dispose() {
@@ -32,117 +43,254 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     super.dispose();
   }
 
-  void _loadComments() {
-    final token = Provider.of<AuthProvider>(context, listen: false).token;
-    if (token != null) {
-      setState(() {
-        _commentsFuture = ApiService.getComments(widget.post.id, token);
-      });
-    }
-  }
-
   Future<void> _postComment() async {
-    if (_commentController.text.trim().isEmpty || _isPosting) return;
-    setState(() => _isPosting = true);
-    final token = Provider.of<AuthProvider>(context, listen: false).token;
+    if (_commentController.text.trim().isEmpty) return;
+    final provider = Provider.of<PostDetailProvider>(context, listen: false);
+
+    final text = _commentController.text.trim();
+    _commentController.clear();
+    FocusScope.of(context).unfocus();
+
     try {
-      await ApiService.createComment(
-        widget.post.id,
-        _commentController.text.trim(),
-        token!,
-      );
-      Provider.of<FeedProvider>(
-        context,
-        listen: false,
-      ).incrementCommentCount(widget.post.id);
-      _commentController.clear();
-      FocusScope.of(context).unfocus();
-      _loadComments();
+      await provider.createComment(text);
     } catch (e) {
-      if (mounted)
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error: $e')));
-    } finally {
-      if (mounted) setState(() => _isPosting = false);
+      if (mounted) {
+        NotificationHelper.showError(context, message: 'เกิดข้อผิดพลาด: $e');
+      }
     }
   }
 
-  void _showReplyDialog(Comment parentComment) {
-    final replyController = TextEditingController();
-    final token = Provider.of<AuthProvider>(context, listen: false).token;
-    bool isDialogPosting = false;
+  @override
+  Widget build(BuildContext context) {
+    final provider = context.watch<PostDetailProvider>();
+    final theme = Theme.of(context);
 
-    showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setDialogState) {
-          return AlertDialog(
-            title: Text('Reply to ${parentComment.author.username}'),
-            content: TextField(
-              controller: replyController,
-              autofocus: true,
-              decoration: const InputDecoration(hintText: 'Your reply...'),
+    return Scaffold(
+      backgroundColor: theme.scaffoldBackgroundColor,
+      appBar: AppBar(title: Text("โพสต์ของ ${provider.post.author.username}")),
+      body: Column(
+        children: [
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: provider.fetchComments,
+              child: CustomScrollView(
+                slivers: [
+                  SliverToBoxAdapter(child: _PostContent(post: provider.post)),
+                  const SliverToBoxAdapter(child: Divider(height: 1)),
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                      child: Text(
+                        'ความคิดเห็น',
+                        style: theme.textTheme.titleLarge,
+                      ),
+                    ),
+                  ),
+                  if (provider.isLoading)
+                    const SliverToBoxAdapter(
+                      child: Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(32.0),
+                          child: CircularProgressIndicator(),
+                        ),
+                      ),
+                    ),
+
+                  if (provider.errorMessage != null)
+                    SliverToBoxAdapter(
+                      child: Center(child: Text(provider.errorMessage!)),
+                    ),
+
+                  if (!provider.isLoading && provider.comments.isEmpty)
+                    const SliverToBoxAdapter(
+                      child: Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(32),
+                          child: Text('ยังไม่มีความคิดเห็น'),
+                        ),
+                      ),
+                    ),
+
+                  SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) =>
+                          _CommentItem(comment: provider.comments[index]),
+                      childCount: provider.comments.length,
+                    ),
+                  ),
+                ],
+              ),
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(ctx).pop(),
-                child: const Text('Cancel'),
+          ),
+          _CommentInputField(
+            controller: _commentController,
+            onPost: _postComment,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PostContent extends StatelessWidget {
+  final Post post;
+  const _PostContent({required this.post});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final pageController = PageController();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              CircleAvatar(
+                backgroundColor: AppTheme.background,
+                backgroundImage: post.author.profileImageUrl.isNotEmpty
+                    ? NetworkImage(post.author.profileImageUrl)
+                    : null,
+                child: post.author.profileImageUrl.isEmpty
+                    ? const Icon(Icons.person, color: AppTheme.lightText)
+                    : null,
               ),
-              TextButton(
-                onPressed: isDialogPosting
-                    ? null
-                    : () async {
-                        if (replyController.text.trim().isEmpty) return;
-                        // --- ✨ แก้ไขส่วนนี้ ✨ ---
-                        setDialogState(() {
-                          isDialogPosting = true;
-                        });
-                        try {
-                          await ApiService.replyToComment(
-                            parentComment.id,
-                            replyController.text.trim(),
-                            token!,
-                          );
-                          if (mounted) Navigator.of(ctx).pop();
-                          _loadComments();
-                        } catch (e) {
-                          if (mounted)
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('Failed to reply: $e'),
-                                backgroundColor: Colors.red,
-                              ),
-                            );
-                        } finally {
-                          if (mounted)
-                            setDialogState(() {
-                              isDialogPosting = false;
-                            });
-                        }
-                      },
-                child: isDialogPosting
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(),
-                      )
-                    : const Text('Reply'),
-              ),
+              const SizedBox(width: 12),
+              Text(post.author.username, style: theme.textTheme.titleMedium),
             ],
-          );
-        },
+          ),
+        ),
+        if (post.text.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: Text(post.text, style: theme.textTheme.bodyLarge),
+          ),
+        if (post.imageUrls.isNotEmpty)
+          AspectRatio(
+            aspectRatio: 1.0,
+            child: Stack(
+              alignment: Alignment.bottomCenter,
+              children: [
+                PageView.builder(
+                  controller: pageController,
+                  itemCount: post.imageUrls.length,
+                  itemBuilder: (context, index) =>
+                      Image.network(post.imageUrls[index], fit: BoxFit.cover),
+                ),
+                if (post.imageUrls.length > 1)
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: SmoothPageIndicator(
+                      controller: pageController,
+                      count: post.imageUrls.length,
+                      effect: const WormEffect(
+                        dotHeight: 8,
+                        dotWidth: 8,
+                        activeDotColor: AppTheme.primary,
+                        dotColor: Colors.white70,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _CommentItem extends StatelessWidget {
+  final Comment comment;
+  const _CommentItem({required this.comment});
+
+  void _showCommentOptions(
+    BuildContext context,
+    PostDetailProvider provider,
+    Comment c,
+  ) {
+    final theme = Theme.of(context);
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) => Wrap(
+        children: <Widget>[
+          ListTile(
+            leading: const Icon(Icons.edit_outlined),
+            title: const Text('แก้ไข'),
+            onTap: () {
+              Navigator.of(ctx).pop();
+              _showEditDialog(context, provider, c);
+            },
+          ),
+          ListTile(
+            leading: Icon(Icons.delete_outline, color: theme.colorScheme.error),
+            title: Text('ลบ', style: TextStyle(color: theme.colorScheme.error)),
+            onTap: () {
+              Navigator.of(ctx).pop();
+              _deleteComment(context, provider, c.id);
+            },
+          ),
+        ],
       ),
     );
   }
 
-  void _showEditDialog(Comment commentToEdit) {
-    final editController = TextEditingController(text: commentToEdit.text);
-    final token = Provider.of<AuthProvider>(context, listen: false).token;
+  void _showReplyDialog(
+    BuildContext context,
+    PostDetailProvider provider,
+    Comment parentComment,
+  ) {
+    final replyController = TextEditingController();
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Edit Comment'),
+        title: Text('ตอบกลับถึง ${parentComment.author.username}'),
+        content: TextField(
+          controller: replyController,
+          autofocus: true,
+          decoration: const InputDecoration(hintText: 'เขียนการตอบกลับ...'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('ยกเลิก'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (replyController.text.trim().isEmpty) return;
+              try {
+                await provider.replyToComment(
+                  parentComment.id,
+                  replyController.text.trim(),
+                );
+                Navigator.of(ctx).pop();
+              } catch (e) {
+                if (ctx.mounted) {
+                  NotificationHelper.showError(
+                    ctx,
+                    message: 'ตอบกลับไม่สำเร็จ: $e',
+                  );
+                }
+              }
+            },
+            child: const Text('ตอบกลับ'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showEditDialog(
+    BuildContext context,
+    PostDetailProvider provider,
+    Comment commentToEdit,
+  ) {
+    final editController = TextEditingController(text: commentToEdit.text);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('แก้ไขความคิดเห็น'),
         content: TextField(
           controller: editController,
           autofocus: true,
@@ -151,350 +299,187 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel'),
+            child: const Text('ยกเลิก'),
           ),
-          TextButton(
+          ElevatedButton(
             onPressed: () async {
               if (editController.text.trim().isEmpty) return;
               try {
-                await ApiService.updateComment(
+                await provider.updateComment(
                   commentToEdit.id,
                   editController.text.trim(),
-                  token!,
                 );
                 Navigator.of(ctx).pop();
-                _loadComments();
               } catch (e) {
-                if (mounted)
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(SnackBar(content: Text('Failed to edit: $e')));
+                if (ctx.mounted) {
+                  NotificationHelper.showError(
+                    ctx,
+                    message: 'แก้ไขไม่สำเร็จ: $e',
+                  );
+                }
               }
             },
-            child: const Text('Save'),
+            child: const Text('บันทึก'),
           ),
         ],
       ),
     );
   }
 
-  Future<void> _deleteComment(String commentId) async {
+  Future<void> _deleteComment(
+    BuildContext context,
+    PostDetailProvider provider,
+    String commentId,
+  ) async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Delete Comment'),
-        content: const Text('Are you sure you want to delete this comment?'),
+        title: const Text('ลบความคิดเห็น'),
+        content: const Text('คุณแน่ใจหรือไม่ว่าต้องการลบความคิดเห็นนี้?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
+            child: const Text('ยกเลิก'),
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+            child: Text(
+              'ลบ',
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
           ),
         ],
       ),
     );
 
-    if (confirm == true) {
-      final token = Provider.of<AuthProvider>(context, listen: false).token;
+    if (confirm == true && context.mounted) {
       try {
-        await ApiService.deleteComment(commentId, token!);
-        Provider.of<FeedProvider>(
-          context,
-          listen: false,
-        ).decrementCommentCount(widget.post.id);
-        _loadComments();
+        await provider.deleteComment(commentId);
       } catch (e) {
-        if (mounted)
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('Failed to delete: $e')));
+        if (context.mounted) {
+          NotificationHelper.showError(context, message: 'ลบไม่สำเร็จ: $e');
+        }
       }
     }
   }
 
-  void _showCommentOptions(Comment comment) {
-    showModalBottomSheet(
-      context: context,
-      builder: (ctx) => Wrap(
-        children: <Widget>[
-          ListTile(
-            leading: const Icon(Icons.edit),
-            title: const Text('Edit'),
-            onTap: () {
-              Navigator.of(ctx).pop();
-              _showEditDialog(comment);
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.delete, color: Colors.red),
-            title: const Text('Delete', style: TextStyle(color: Colors.red)),
-            onTap: () {
-              Navigator.of(ctx).pop();
-              _deleteComment(comment.id);
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text("${widget.post.author.username}'s Post")),
-      body: Column(
-        children: [
-          Expanded(
-            child: FutureBuilder<List<Comment>>(
-              future: _commentsFuture,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (snapshot.hasError) {
-                  return Center(
-                    child: Text('Error loading comments: ${snapshot.error}'),
-                  );
-                }
-                final comments = snapshot.data ?? [];
-
-                return CustomScrollView(
-                  slivers: [
-                    SliverToBoxAdapter(child: _buildPostContent()),
-                    const SliverToBoxAdapter(child: Divider(height: 1)),
-                    const SliverToBoxAdapter(
-                      child: Padding(
-                        padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
-                        child: Text(
-                          'Comments',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
-                    if (comments.isEmpty)
-                      const SliverToBoxAdapter(
-                        child: Center(
-                          child: Padding(
-                            padding: EdgeInsets.all(32),
-                            child: Text('No comments yet.'),
-                          ),
-                        ),
-                      ),
-
-                    SliverList(
-                      delegate: SliverChildBuilderDelegate(
-                        (context, index) => _buildCommentItem(comments[index]),
-                        childCount: comments.length,
-                      ),
-                    ),
-                  ],
-                );
-              },
-            ),
-          ),
-          _buildCommentInputField(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCommentItem(Comment comment, {bool isReply = false}) {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final provider = Provider.of<PostDetailProvider>(context, listen: false);
     final isOwner = authProvider.user?.id == comment.author.id;
+    final theme = Theme.of(context);
 
-    return Padding(
-      padding: EdgeInsets.only(
-        left: isReply ? 56.0 : 16.0,
-        right: 16,
-        top: 8,
-        bottom: 8,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              GestureDetector(
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) =>
-                        ProfileScreen(userId: comment.author.id),
-                  ),
-                ),
-                child: CircleAvatar(
-                  radius: isReply ? 16 : 20,
-                  backgroundImage: NetworkImage(comment.author.profileImageUrl),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                comment.author.username,
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-              const Spacer(),
-              if (isOwner)
-                SizedBox(
-                  height: 30,
-                  width: 30,
-                  child: IconButton(
-                    padding: EdgeInsets.zero,
-                    icon: const Icon(Icons.more_vert, size: 18),
-                    onPressed: () => _showCommentOptions(comment),
-                  ),
-                ),
-            ],
-          ),
-          Padding(
-            padding: EdgeInsets.only(left: isReply ? 40.0 : 48.0, top: 4),
-            child: Text(comment.text),
-          ),
-          Padding(
-            padding: EdgeInsets.only(left: isReply ? 32.0 : 40.0),
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: () => _showReplyDialog(comment),
-                borderRadius: BorderRadius.circular(4),
-                child: const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
-                  child: Text(
-                    'Reply',
-                    style: TextStyle(
-                      color: Colors.blueAccent,
-                      fontWeight: FontWeight.bold,
+    Widget buildCommentContent({bool isReply = false}) {
+      return Padding(
+        padding: EdgeInsets.fromLTRB(isReply ? 56.0 : 16.0, 8, 16, 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                GestureDetector(
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) =>
+                          ProfileScreen(userId: comment.author.id),
                     ),
                   ),
+                  child: CircleAvatar(
+                    radius: isReply ? 16 : 20,
+                    backgroundImage: comment.author.profileImageUrl.isNotEmpty
+                        ? NetworkImage(comment.author.profileImageUrl)
+                        : null,
+                    child: comment.author.profileImageUrl.isEmpty
+                        ? Icon(Icons.person, size: isReply ? 16 : 20)
+                        : null,
+                  ),
                 ),
-              ),
-            ),
-          ),
-          if (comment.replies.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(left: 8.0),
-              child: Column(
-                children: comment.replies
-                    .map((reply) => _buildCommentItem(reply, isReply: true))
-                    .toList(),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPostContent() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        InkWell(
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) =>
-                    ProfileScreen(userId: widget.post.author.id),
-              ),
-            );
-          },
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  backgroundImage: widget.post.author.profileImageUrl.isNotEmpty
-                      ? NetworkImage(widget.post.author.profileImageUrl)
-                      : null,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        comment.author.username,
+                        style: theme.textTheme.bodyLarge?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(comment.text, style: theme.textTheme.bodyLarge),
+                    ],
+                  ),
                 ),
-                const SizedBox(width: 8),
-                Text(
-                  widget.post.author.username,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
+                if (isOwner)
+                  IconButton(
+                    icon: const Icon(
+                      Icons.more_vert,
+                      size: 20,
+                      color: AppTheme.lightText,
+                    ),
+                    onPressed: () =>
+                        _showCommentOptions(context, provider, comment),
+                  ),
               ],
             ),
-          ),
-        ),
-        if (widget.post.text.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            child: Text(widget.post.text),
-          ),
-        if (widget.post.imageUrls.isNotEmpty)
-          AspectRatio(
-            aspectRatio: 1.0,
-            child: PageView.builder(
-              itemCount: widget.post.imageUrls.length,
-              itemBuilder: (context, index) {
-                return Image.network(
-                  widget.post.imageUrls[index],
-                  fit: BoxFit.cover,
-                );
-              },
-            ),
-          ),
-        if (widget.post.linkedHairstyle != null)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-            child: Card(
-              child: ListTile(
-                leading: Image.network(
-                  widget.post.linkedHairstyle!.imageUrls.first,
-                  width: 50,
-                  fit: BoxFit.cover,
-                ),
-                title: Text(widget.post.linkedHairstyle!.name),
-                subtitle: const Text('Linked Hairstyle'),
+            Padding(
+              padding: const EdgeInsets.only(left: 52.0),
+              child: TextButton(
+                onPressed: () => _showReplyDialog(context, provider, comment),
+                child: const Text('ตอบกลับ'),
               ),
-            ),
-          ),
-      ],
-    );
-  }
-
-  Widget _buildCommentInputField() {
-    return Container(
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom,
-        left: 16,
-        right: 16,
-        top: 8,
-      ),
-      child: SafeArea(
-        child: Row(
-          children: [
-            Expanded(
-              child: TextField(
-                controller: _commentController,
-                decoration: InputDecoration(
-                  hintText: 'Add a comment...',
-                  border: const OutlineInputBorder(),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 10,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            IconButton(
-              icon: _isPosting
-                  ? const SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: CircularProgressIndicator(strokeWidth: 3),
-                    )
-                  : const Icon(Icons.send),
-              onPressed: _postComment,
             ),
           ],
         ),
+      );
+    }
+
+    return Column(
+      children: [
+        buildCommentContent(),
+        ...comment.replies.map((reply) => buildCommentContent(isReply: true)),
+      ],
+    );
+  }
+}
+
+class _CommentInputField extends StatelessWidget {
+  final TextEditingController controller;
+  final VoidCallback onPost;
+  const _CommentInputField({required this.controller, required this.onPost});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.fromLTRB(
+        16,
+        8,
+        8,
+        MediaQuery.of(context).padding.bottom + 8,
+      ),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        border: Border(top: BorderSide(color: Colors.grey.shade300)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: controller,
+              decoration: const InputDecoration(
+                hintText: 'เพิ่มความคิดเห็น...',
+                border: InputBorder.none,
+              ),
+              textCapitalization: TextCapitalization.sentences,
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.send, color: AppTheme.primary),
+            onPressed: onPost,
+          ),
+        ],
       ),
     );
   }
