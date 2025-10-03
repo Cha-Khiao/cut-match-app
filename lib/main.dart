@@ -1,32 +1,36 @@
 import 'package:cut_match_app/providers/auth_provider.dart';
 import 'package:cut_match_app/providers/feed_provider.dart';
+import 'package:cut_match_app/providers/hairstyle_provider.dart';
 import 'package:cut_match_app/providers/notification_provider.dart';
 import 'package:cut_match_app/screens/admin/admin_hub_screen.dart';
-import 'package:cut_match_app/screens/admin/admin_hairstyle_list_screen.dart';
-import 'package:cut_match_app/screens/admin/admin_salon_form_screen.dart';
-import 'package:cut_match_app/screens/admin/admin_salon_list_screen.dart';
-import 'package:cut_match_app/screens/admin/hairstyle_form_screen.dart';
-import 'package:cut_match_app/screens/auth_screen.dart';
-import 'package:cut_match_app/screens/create_post_screen.dart';
-import 'package:cut_match_app/screens/edit_profile_screen.dart';
-import 'package:cut_match_app/screens/favorites_screen.dart';
-import 'package:cut_match_app/screens/main_screen.dart';
-import 'package:cut_match_app/screens/profile_screen.dart';
-import 'package:cut_match_app/screens/saved_looks_screen.dart';
-import 'package:cut_match_app/screens/splash_screen.dart';
-import 'package:cut_match_app/screens/user_search_screen.dart';
-import 'package:cut_match_app/screens/virtual_try_on_screen.dart';
-import 'package:cut_match_app/screens/welcome_screen.dart';
+import 'package:cut_match_app/screens/admin/hairstyles/admin_hairstyle_list_screen.dart';
+import 'package:cut_match_app/screens/admin/salon/admin_salon_form_screen.dart';
+import 'package:cut_match_app/screens/admin/salon/admin_salon_list_screen.dart';
+import 'package:cut_match_app/screens/admin/hairstyles/hairstyle_form_screen.dart';
+import 'package:cut_match_app/screens/auth/login_screen.dart';
+import 'package:cut_match_app/screens/auth/register_screen.dart';
+import 'package:cut_match_app/screens/social/posts/create_post_screen.dart';
+import 'package:cut_match_app/screens/profiles/edit_profile_screen.dart';
+import 'package:cut_match_app/screens/favorites/favorites_screen.dart';
+import 'package:cut_match_app/screens/baseapp/main_screen.dart';
+import 'package:cut_match_app/screens/profiles/profile_screen.dart';
+import 'package:cut_match_app/screens/save/saved_looks_screen.dart';
+import 'package:cut_match_app/screens/startapp/onboarding_screen.dart';
+import 'package:cut_match_app/screens/startapp/splash_screen.dart';
+import 'package:cut_match_app/screens/social/search/user_search_screen.dart';
+import 'package:cut_match_app/screens/face/virtual_try_on_screen.dart';
+import 'package:cut_match_app/screens/startapp/welcome_screen.dart';
+import 'package:cut_match_app/utils/app_theme.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
-import 'package:overlay_support/overlay_support.dart'; // ✨ เพิ่มเพื่อรองรับแบนเนอร์แจ้งเตือน
+import 'package:overlay_support/overlay_support.dart';
 
 void main() {
   runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (_) => HairstyleProvider()),
         ChangeNotifierProxyProvider<AuthProvider, FeedProvider>(
           create: (_) => FeedProvider(),
           update: (_, auth, previous) => previous!..updateToken(auth.token),
@@ -46,27 +50,17 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // ✨ ห่อ MaterialApp ด้วย OverlaySupport เพื่อให้แสดงแบนเนอร์แจ้งเตือนได้
     return OverlaySupport.global(
       child: MaterialApp(
         title: 'Cut Match',
         debugShowCheckedModeBanner: false,
-        theme: ThemeData(
-          primarySwatch: Colors.blue,
-          scaffoldBackgroundColor: Colors.white,
-          textTheme: GoogleFonts.kanitTextTheme(Theme.of(context).textTheme),
-          appBarTheme: AppBarTheme(
-            titleTextStyle: GoogleFonts.kanit(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Colors.black,
-            ),
-          ),
-        ),
+        theme: AppTheme.lightTheme,
         home: const SplashScreen(),
         routes: {
+          '/onboarding': (context) => const OnboardingScreen(),
           '/welcome': (context) => const WelcomeScreen(),
-          '/auth': (context) => const AuthScreen(),
+          '/login': (context) => const LoginScreen(),
+          '/register': (context) => const RegisterScreen(),
           '/main': (context) => const MainScreen(),
           '/profile': (context) => const ProfileScreen(),
           '/edit_profile': (context) => const EditProfileScreen(),
