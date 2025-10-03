@@ -92,7 +92,7 @@
 ### ขั้นตอนการติดตั้ง
 1.  **Clone a repository:**
     ```bash
-    git clone [https://github.com/your-username/cut-match-app.git](https://github.com/your-username/cut-match-app.git)
+    git clone [https://github.com/your-username/cut-match-app.git]
     cd cut-match-app
     ```
 
@@ -105,7 +105,7 @@
     - เปิดไฟล์ `lib/api/api_service.dart`
     - แก้ไขตัวแปร `_baseUrl` ให้เป็น URL ของ API ที่คุณ Deploy ไว้
       ```dart
-      static const String _baseUrl = '[https://your-api-url.vercel.app/api](https://your-api-url.vercel.app/api)';
+      static const String _baseUrl = '[https://your-api-url.vercel.app/api]';
       ```
 
 4.  **รันแอปพลิเคชัน:**
