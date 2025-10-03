@@ -47,7 +47,6 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
               color: AppTheme.lightText,
             ),
             const SizedBox(height: 16),
-            // ✨ [i18n] แปลเป็นภาษาไทย
             Text(
               'ยังไม่มีรายการโปรด',
               style: theme.textTheme.headlineSmall?.copyWith(
@@ -56,7 +55,6 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 8),
-            // ✨ [i18n] แปลเป็นภาษาไทย
             Text(
               'ไปที่แกลเลอรีแล้วกด ❤️ ที่ทรงผมที่คุณชอบได้เลย!',
               style: theme.textTheme.bodyLarge?.copyWith(
@@ -74,10 +72,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AppBar(
-        // ✨ [i18n] แปลเป็นภาษาไทย
-        title: const Text('ทรงผมที่ถูกใจ'),
-      ),
+      appBar: AppBar(title: const Text('ทรงผมที่ถูกใจ')),
       body: FutureBuilder<List<Hairstyle>>(
         future: _favoritesFuture,
         builder: (context, snapshot) {
@@ -86,7 +81,6 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
           }
 
           if (snapshot.hasError) {
-            // ✨ [i18n] แปลเป็นภาษาไทย
             return Center(child: Text('เกิดข้อผิดพลาด: ${snapshot.error}'));
           }
 
