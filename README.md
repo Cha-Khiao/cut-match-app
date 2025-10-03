@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="assets/images/cut-match-2.png" alt="Cut Match Logo" width="120" />
+  <img src="assets/images/cut_match_01.png" alt="Cut Match Logo" width="120" />
   <h1>Cut Match: ลุคชัด-ตัดเลย</h1>
   <p>
     <strong>แอปพลิเคชันค้นหา, ลอง, และแบ่งปันสไตล์ทรงผม พร้อมฟังก์ชันโซเชียลเต็มรูปแบบ</strong>
@@ -116,7 +116,7 @@
 
 ## 📸 ภาพหน้าจอ (Screenshots)
 <div align="center">
-  <img src="placeholder_screenshot_home.png" alt="Home Screen" width="200" />
+  <img src="assets/images/FVeFNM0p.png" alt="Home Screen" width="200" />
   <img src="placeholder_screenshot_tryon.png" alt="Virtual Try-On" width="200" />
   <img src="placeholder_screenshot_feed.png" alt="Social Feed" width="200" />
   <img src="placeholder_screenshot_profile.png" alt="Profile Screen" width="200" />
