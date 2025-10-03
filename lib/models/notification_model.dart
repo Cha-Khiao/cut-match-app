@@ -6,7 +6,7 @@ class NotificationModel {
   final User sender;
   final String type;
   final Post? post;
-  bool isRead; // <-- ✨ แก้ไขบรรทัดนี้ (เอา final ออก)
+  final bool isRead;
   final DateTime createdAt;
 
   NotificationModel({
@@ -18,11 +18,27 @@ class NotificationModel {
     required this.createdAt,
   });
 
+  NotificationModel copyWith({
+    String? id,
+    User? sender,
+    String? type,
+    Post? post,
+    bool? isRead,
+    DateTime? createdAt,
+  }) {
+    return NotificationModel(
+      id: id ?? this.id,
+      sender: sender ?? this.sender,
+      type: type ?? this.type,
+      post: post ?? this.post,
+      isRead: isRead ?? this.isRead,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
+
   factory NotificationModel.fromJson(Map<String, dynamic> json) {
-    // สร้าง Post object เฉพาะเมื่อมีข้อมูล post จริงๆ
     Post? postObject;
     if (json['post'] != null && json['post'] is Map<String, dynamic>) {
-      // ตรวจสอบว่า author ใน post ไม่ใช่แค่ ID
       if (json['post']['author'] != null &&
           json['post']['author'] is Map<String, dynamic>) {
         postObject = Post.fromJson(json['post']);
@@ -34,8 +50,19 @@ class NotificationModel {
       sender: User.fromJson(json['sender']),
       type: json['type'],
       post: postObject,
-      isRead: json['isRead'],
+      isRead: json['isRead'] ?? false,
       createdAt: DateTime.parse(json['createdAt']),
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      '_id': id,
+      'sender': sender.toJson(),
+      'type': type,
+      'post': post?.toJson(),
+      'isRead': isRead,
+      'createdAt': createdAt.toIso8601String(),
+    };
   }
 }
