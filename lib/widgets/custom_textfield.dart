@@ -1,3 +1,4 @@
+import 'package:cut_match_app/utils/app_theme.dart';
 import 'package:flutter/material.dart';
 
 class CustomTextField extends StatefulWidget {
@@ -5,6 +6,10 @@ class CustomTextField extends StatefulWidget {
   final String hintText;
   final bool isPassword;
   final IconData icon;
+  final String? Function(String?)? validator;
+  final TextInputType keyboardType;
+  final void Function(String)? onChanged;
+  final bool autofocus;
 
   const CustomTextField({
     super.key,
@@ -12,6 +17,10 @@ class CustomTextField extends StatefulWidget {
     required this.hintText,
     this.isPassword = false,
     required this.icon,
+    this.validator,
+    this.keyboardType = TextInputType.text,
+    this.onChanged,
+    this.autofocus = false,
   });
 
   @override
@@ -23,25 +32,21 @@ class _CustomTextFieldState extends State<CustomTextField> {
 
   @override
   Widget build(BuildContext context) {
-    return TextField(
+    return TextFormField(
       controller: widget.controller,
-      // ถ้าเป็นรหัสผ่าน ให้ใช้ค่า _isObscured, ถ้าไม่ใช่ ให้เป็น false เสมอ
       obscureText: widget.isPassword ? _isObscured : false,
+      validator: widget.validator,
+      keyboardType: widget.keyboardType,
+      onChanged: widget.onChanged,
+      autofocus: widget.autofocus,
       decoration: InputDecoration(
         hintText: widget.hintText,
-        prefixIcon: Icon(widget.icon, color: Colors.grey),
-        filled: true,
-        fillColor: Colors.grey.shade200,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide.none,
-        ),
-        // --- ✨ เพิ่มปุ่มเปิด/ปิดตาที่นี่ ✨ ---
+        prefixIcon: Icon(widget.icon, color: AppTheme.lightText),
         suffixIcon: widget.isPassword
             ? IconButton(
                 icon: Icon(
                   _isObscured ? Icons.visibility_off : Icons.visibility,
-                  color: Colors.grey,
+                  color: AppTheme.lightText,
                 ),
                 onPressed: () {
                   setState(() {
@@ -49,7 +54,7 @@ class _CustomTextFieldState extends State<CustomTextField> {
                   });
                 },
               )
-            : null, // ถ้าไม่ใช่ช่องรหัสผ่าน ก็ไม่ต้องแสดงปุ่ม
+            : null,
       ),
     );
   }
