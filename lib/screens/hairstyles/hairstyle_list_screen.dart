@@ -1,21 +1,21 @@
 import 'dart:async';
-import 'package:cut_match_app/api/api_service.dart';
-import 'package:cut_match_app/models/hairstyle_model.dart';
 import 'package:cut_match_app/providers/auth_provider.dart';
-import 'package:cut_match_app/providers/notification_provider.dart'; // <-- 1. เพิ่ม Import
-import 'package:cut_match_app/screens/notification_screen.dart'; // <-- 2. เพิ่ม Import
+import 'package:cut_match_app/providers/hairstyle_provider.dart';
+import 'package:cut_match_app/providers/notification_provider.dart';
+import 'package:cut_match_app/screens/social/notifications/notification_screen.dart';
+import 'package:cut_match_app/utils/app_theme.dart';
+import 'package:cut_match_app/widgets/custom_textfield.dart';
 import 'package:cut_match_app/widgets/hairstyle_card.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+class HairstyleListScreen extends StatefulWidget {
+  const HairstyleListScreen({super.key});
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  State<HairstyleListScreen> createState() => _HairstyleListScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
-  Future<List<Hairstyle>>? _hairstylesFuture;
+class _HairstyleListScreenState extends State<HairstyleListScreen> {
   final TextEditingController _searchController = TextEditingController();
   String? _selectedGender;
   Timer? _debounce;
@@ -23,23 +23,27 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    _fetchHairstyles();
-  }
-
-  void _fetchHairstyles() {
-    setState(() {
-      _hairstylesFuture = ApiService.getHairstyles(
-        gender: _selectedGender,
-        search: _searchController.text.trim(),
-      );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Provider.of<HairstyleProvider>(context, listen: false).fetchHairstyles();
     });
   }
 
   void _onSearchChanged(String query) {
     if (_debounce?.isActive ?? false) _debounce!.cancel();
     _debounce = Timer(const Duration(milliseconds: 500), () {
-      _fetchHairstyles();
+      Provider.of<HairstyleProvider>(
+        context,
+        listen: false,
+      ).fetchHairstyles(search: query, gender: _selectedGender);
     });
+  }
+
+  void _onFilterChanged(String gender) {
+    setState(() => _selectedGender = (gender == 'All') ? null : gender);
+    Provider.of<HairstyleProvider>(context, listen: false).fetchHairstyles(
+      search: _searchController.text.trim(),
+      gender: _selectedGender,
+    );
   }
 
   @override
@@ -51,35 +55,28 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Scaffold(
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 1,
-        title: const Text(
-          'Hairstyle Gallery',
-          style: TextStyle(color: Colors.black),
-        ),
-        // --- ✨ 3. แก้ไขส่วน actions ✨ ---
+        title: const Text('Hairstyle Gallery'),
+        centerTitle: false,
         actions: [
           Consumer<NotificationProvider>(
             builder: (context, notifProvider, child) {
               return Badge(
                 label: Text('${notifProvider.unreadCount}'),
-                isLabelVisible: notifProvider.unreadCount > 0,
+                isLabelVisible: notifProvider.hasUnreadNotifications,
+                backgroundColor: theme.colorScheme.error,
                 child: IconButton(
-                  icon: const Icon(
-                    Icons.notifications_outlined,
-                    color: Colors.black,
+                  icon: const Icon(Icons.notifications_outlined),
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const NotificationScreen(),
+                    ),
                   ),
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const NotificationScreen(),
-                      ),
-                    );
-                  },
-                  tooltip: 'Notifications',
+                  tooltip: 'การแจ้งเตือน',
                 ),
               );
             },
@@ -88,14 +85,14 @@ class _HomeScreenState extends State<HomeScreen> {
             builder: (context, auth, child) {
               if (auth.isAdmin) {
                 return IconButton(
-                  icon: const Icon(
-                    Icons.admin_panel_settings,
-                    color: Colors.blue,
-                  ),
-                  onPressed: () => Navigator.pushNamed(
-                    context,
-                    '/admin_hub',
-                  ).then((_) => _fetchHairstyles()),
+                  icon: Icon(Icons.admin_panel_settings),
+                  onPressed: () =>
+                      Navigator.pushNamed(context, '/admin_hub').then(
+                        (_) => Provider.of<HairstyleProvider>(
+                          context,
+                          listen: false,
+                        ).fetchHairstyles(),
+                      ),
                 );
               }
               return const SizedBox.shrink();
@@ -109,18 +106,10 @@ class _HomeScreenState extends State<HomeScreen> {
             padding: const EdgeInsets.all(16.0),
             child: Column(
               children: [
-                TextField(
+                CustomTextField(
                   controller: _searchController,
-                  decoration: InputDecoration(
-                    hintText: 'Search hairstyles...',
-                    prefixIcon: const Icon(Icons.search),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
-                    ),
-                    filled: true,
-                    fillColor: Colors.grey.shade200,
-                  ),
+                  hintText: 'ค้นหาทรงผม...',
+                  icon: Icons.search,
                   onChanged: _onSearchChanged,
                 ),
                 const SizedBox(height: 12),
@@ -128,27 +117,19 @@ class _HomeScreenState extends State<HomeScreen> {
                   height: 40,
                   child: ListView(
                     scrollDirection: Axis.horizontal,
-                    children: ['All', 'ชาย', 'หญิง', 'Unisex'].map((gender) {
+                    children: ['ทั้งหมด', 'ชาย', 'หญิง', 'Unisex'].map((
+                      gender,
+                    ) {
                       final isSelected =
                           _selectedGender == gender ||
-                          (gender == 'All' && _selectedGender == null);
+                          (gender == 'ทั้งหมด' && _selectedGender == null);
                       return Padding(
                         padding: const EdgeInsets.only(right: 8.0),
                         child: ChoiceChip(
                           label: Text(gender),
                           selected: isSelected,
-                          onSelected: (selected) {
-                            setState(
-                              () => _selectedGender = (gender == 'All')
-                                  ? null
-                                  : gender,
-                            );
-                            _fetchHairstyles();
-                          },
-                          backgroundColor: Colors.grey.shade200,
-                          selectedColor: Colors.black,
-                          labelStyle: TextStyle(
-                            color: isSelected ? Colors.white : Colors.black,
+                          onSelected: (selected) => _onFilterChanged(
+                            gender == 'ทั้งหมด' ? 'All' : gender,
                           ),
                         ),
                       );
@@ -159,23 +140,43 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           Expanded(
-            child: FutureBuilder<List<Hairstyle>>(
-              future: _hairstylesFuture,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(
-                    child: CircularProgressIndicator(color: Colors.black),
+            child: Consumer<HairstyleProvider>(
+              builder: (context, provider, child) {
+                if (provider.isLoading) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (provider.errorMessage != null) {
+                  return Center(
+                    child: Text('เกิดข้อผิดพลาด: ${provider.errorMessage}'),
                   );
                 }
-                if (snapshot.hasError) {
-                  return Center(child: Text('Error: ${snapshot.error}'));
+                if (provider.hairstyles.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.search_off_rounded,
+                          size: 80,
+                          color: AppTheme.lightText,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'ไม่พบทรงผมที่ค้นหา',
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            color: AppTheme.lightText,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
                 }
-                if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                  return const Center(child: Text('No hairstyles found.'));
-                }
-                final hairstyles = snapshot.data!;
                 return RefreshIndicator(
-                  onRefresh: () async => _fetchHairstyles(),
+                  onRefresh: () => provider.fetchHairstyles(
+                    gender: _selectedGender,
+                    search: _searchController.text.trim(),
+                  ),
+                  color: theme.colorScheme.primary,
                   child: GridView.builder(
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                     gridDelegate:
@@ -185,9 +186,11 @@ class _HomeScreenState extends State<HomeScreen> {
                           mainAxisSpacing: 16,
                           childAspectRatio: 0.75,
                         ),
-                    itemCount: hairstyles.length,
+                    itemCount: provider.hairstyles.length,
                     itemBuilder: (context, index) {
-                      return HairstyleCard(hairstyle: hairstyles[index]);
+                      return HairstyleCard(
+                        hairstyle: provider.hairstyles[index],
+                      );
                     },
                   ),
                 );
