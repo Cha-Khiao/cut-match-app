@@ -1,5 +1,6 @@
 import 'package:cut_match_app/models/post_model.dart';
 import 'package:cut_match_app/providers/feed_provider.dart';
+import 'package:cut_match_app/utils/notification_helper.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -39,48 +40,67 @@ class _EditPostScreenState extends State<EditPostScreen> {
 
     if (mounted) {
       if (success) {
-        Navigator.of(context).pop();
+        Navigator.of(context).pop(true);
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(feedProvider.errorMessage ?? 'Failed to save post'),
-          ),
+        NotificationHelper.showError(
+          context,
+          message: feedProvider.errorMessage ?? 'ไม่สามารถบันทึกโพสต์ได้',
         );
+        setState(() => _isSaving = false);
       }
-      setState(() => _isSaving = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        title: const Text('Edit Post'),
+        title: const Text('แก้ไขโพสต์'),
         actions: [
           TextButton(
             onPressed: _isSaving ? null : _savePost,
-            child: const Text('Save'),
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.white,
+              disabledForegroundColor: Colors.white54,
+            ),
+            child: _isSaving
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Text('บันทึก'),
           ),
         ],
       ),
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
             if (widget.post.imageUrls.isNotEmpty)
               ClipRRect(
                 borderRadius: BorderRadius.circular(12),
-                child: Image.network(widget.post.imageUrls.first, height: 200),
+                child: Image.network(
+                  widget.post.imageUrls.first,
+                  height: 200,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                ),
               ),
             const SizedBox(height: 16),
             TextField(
               controller: _textController,
               autofocus: true,
-              maxLines: null, // Allow multiline
+              maxLines: null,
               decoration: const InputDecoration(
-                hintText: 'Edit your caption...',
+                hintText: 'แก้ไขแคปชั่นของคุณ...',
                 border: InputBorder.none,
               ),
+              textCapitalization: TextCapitalization.sentences,
             ),
           ],
         ),
