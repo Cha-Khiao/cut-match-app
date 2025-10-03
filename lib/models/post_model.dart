@@ -5,7 +5,7 @@ class Post {
   final String id;
   final User author;
   final String text;
-  final List<String> imageUrls; // <-- ✨ แก้ไข
+  final List<String> imageUrls;
   final Hairstyle? linkedHairstyle;
   final List<String> likes;
   final int commentCount;
@@ -15,7 +15,7 @@ class Post {
     required this.id,
     required this.author,
     required this.text,
-    required this.imageUrls, // <-- ✨ แก้ไข
+    required this.imageUrls,
     this.linkedHairstyle,
     required this.likes,
     required this.commentCount,
@@ -27,7 +27,7 @@ class Post {
       id: json['_id'],
       author: User.fromJson(json['author']),
       text: json['text'] ?? '',
-      imageUrls: List<String>.from(json['imageUrls'] ?? []), // <-- ✨ แก้ไข
+      imageUrls: List<String>.from(json['imageUrls'] ?? []),
       linkedHairstyle: json['linkedHairstyle'] != null
           ? Hairstyle.fromJson(json['linkedHairstyle'])
           : null,
@@ -57,5 +57,18 @@ class Post {
       commentCount: commentCount ?? this.commentCount,
       createdAt: createdAt ?? this.createdAt,
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      '_id': id,
+      'author': author.toJson(),
+      'text': text,
+      'imageUrls': imageUrls,
+      'linkedHairstyle': linkedHairstyle?.toJson(),
+      'likes': likes,
+      'commentCount': commentCount,
+      'createdAt': createdAt.toIso8601String(),
+    };
   }
 }
