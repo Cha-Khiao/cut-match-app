@@ -2,7 +2,10 @@ import 'package:cut_match_app/models/notification_model.dart';
 import 'package:cut_match_app/providers/notification_provider.dart';
 import 'package:cut_match_app/screens/social/posts/post_detail_screen.dart';
 import 'package:cut_match_app/screens/profiles/profile_screen.dart';
+import 'package:cut_match_app/utils/app_theme.dart';
+import 'package:cut_match_app/utils/notification_helper.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 class NotificationScreen extends StatelessWidget {
@@ -11,15 +14,45 @@ class NotificationScreen extends StatelessWidget {
   String _getNotificationMessage(NotificationModel notif) {
     switch (notif.type) {
       case 'like':
-        return 'liked your post.';
+        return 'ถูกใจโพสต์ของคุณ';
       case 'comment':
-        return 'commented on your post.';
+        return 'แสดงความคิดเห็นบนโพสต์ของคุณ';
       case 'reply':
-        return 'replied to your comment.';
+        return 'ตอบกลับความคิดเห็นของคุณ';
       case 'follow':
-        return 'started following you.';
+        return 'เริ่มติดตามคุณ';
       default:
-        return 'sent you a notification.';
+        return 'ส่งการแจ้งเตือนถึงคุณ';
+    }
+  }
+
+  IconData _getNotificationIcon(NotificationModel notif) {
+    switch (notif.type) {
+      case 'like':
+        return Icons.favorite;
+      case 'comment':
+        return Icons.maps_ugc;
+      case 'reply':
+        return Icons.reply;
+      case 'follow':
+        return Icons.person_add;
+      default:
+        return Icons.notifications;
+    }
+  }
+
+  Color _getNotificationIconColor(NotificationModel notif) {
+    switch (notif.type) {
+      case 'like':
+        return Colors.pink;
+      case 'comment':
+        return Colors.blue;
+      case 'reply':
+        return Colors.green;
+      case 'follow':
+        return AppTheme.primary;
+      default:
+        return AppTheme.lightText;
     }
   }
 
@@ -49,97 +82,162 @@ class NotificationScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final notificationProvider = Provider.of<NotificationProvider>(context);
+    final notificationProvider = context.watch<NotificationProvider>();
+    final theme = Theme.of(context);
 
     return Scaffold(
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        title: const Text('Notifications'),
+        title: const Text('การแจ้งเตือน'),
         actions: [
           if (notificationProvider.unreadCount > 0)
             TextButton(
               onPressed: () => notificationProvider.markAllAsRead(),
-              child: const Text('Mark all as read'),
+              child: const Text('อ่านทั้งหมด'),
             ),
         ],
       ),
       body: RefreshIndicator(
         onRefresh: () => notificationProvider.fetchNotifications(),
+        color: theme.colorScheme.primary,
         child: notificationProvider.notifications.isEmpty
-            ? const Center(child: Text('You have no notifications yet.'))
+            ? Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.notifications_off_outlined,
+                      size: 80,
+                      color: AppTheme.lightText,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'ยังไม่มีการแจ้งเตือน',
+                      style: theme.textTheme.headlineSmall,
+                    ),
+                  ],
+                ),
+              )
             : ListView.builder(
+                padding: const EdgeInsets.all(8.0),
                 itemCount: notificationProvider.notifications.length,
                 itemBuilder: (context, index) {
                   final notif = notificationProvider.notifications[index];
+                  final timeAgo = DateFormat(
+                    'd MMM yyyy, HH:mm',
+                  ).format(notif.createdAt.toLocal());
 
-                  return Dismissible(
-                    key: Key(notif.id),
-                    direction: DismissDirection.endToStart,
-                    onDismissed: (direction) {
-                      notificationProvider.deleteNotification(notif.id);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Notification dismissed')),
-                      );
-                    },
-                    background: Container(
-                      color: Colors.red,
-                      alignment: Alignment.centerRight,
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: const Icon(
-                        Icons.delete_sweep,
-                        color: Colors.white,
-                      ),
+                  return Card(
+                    margin: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
                     ),
-                    child: ListTile(
-                      leading: GestureDetector(
-                        onTap: () => Navigator.push(
+                    color: notif.isRead
+                        ? Colors.white
+                        : AppTheme.primary.withOpacity(0.05),
+                    child: Dismissible(
+                      key: Key(notif.id),
+                      direction: DismissDirection.endToStart,
+                      onDismissed: (direction) {
+                        notificationProvider.deleteNotification(notif.id);
+                        NotificationHelper.showSuccess(
                           context,
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                ProfileScreen(userId: notif.sender.id),
-                          ),
+                          message: 'ลบการแจ้งเตือนแล้ว',
+                        );
+                      },
+                      background: Container(
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.error,
+                          borderRadius: BorderRadius.circular(16.0),
                         ),
-                        child: CircleAvatar(
-                          backgroundImage: NetworkImage(
-                            notif.sender.profileImageUrl,
-                          ),
+                        alignment: Alignment.centerRight,
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: const Icon(
+                          Icons.delete_sweep,
+                          color: Colors.white,
                         ),
                       ),
-                      // --- ✨ แก้ไขการแสดงผลข้อความที่นี่ ✨ ---
-                      title: RichText(
-                        text: TextSpan(
-                          style: DefaultTextStyle.of(
-                            context,
-                          ).style.copyWith(fontSize: 16),
+                      child: ListTile(
+                        leading: Stack(
+                          clipBehavior: Clip.none,
                           children: [
-                            TextSpan(
-                              text: notif.sender.username,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
+                            GestureDetector(
+                              onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      ProfileScreen(userId: notif.sender.id),
+                                ),
+                              ),
+                              child: CircleAvatar(
+                                radius: 25,
+                                backgroundColor: AppTheme.background,
+                                backgroundImage:
+                                    notif.sender.profileImageUrl.isNotEmpty
+                                    ? NetworkImage(notif.sender.profileImageUrl)
+                                    : null,
+                                child: notif.sender.profileImageUrl.isEmpty
+                                    ? const Icon(
+                                        Icons.person,
+                                        color: AppTheme.lightText,
+                                      )
+                                    : null,
                               ),
                             ),
-                            const TextSpan(text: ' '),
-                            TextSpan(text: _getNotificationMessage(notif)),
+                            Positioned(
+                              bottom: -2,
+                              right: -2,
+                              child: CircleAvatar(
+                                radius: 10,
+                                backgroundColor: _getNotificationIconColor(
+                                  notif,
+                                ),
+                                child: Icon(
+                                  _getNotificationIcon(notif),
+                                  color: Colors.white,
+                                  size: 12,
+                                ),
+                              ),
+                            ),
                           ],
                         ),
-                      ),
-                      subtitle: Text(
-                        notif.createdAt.toLocal().toString().substring(0, 16),
-                      ), // แสดงเวลา
-                      trailing: notif.post?.imageUrls.isNotEmpty ?? false
-                          ? ClipRRect(
-                              borderRadius: BorderRadius.circular(4.0),
-                              child: Image.network(
-                                notif.post!.imageUrls.first,
-                                width: 50,
-                                height: 50,
-                                fit: BoxFit.cover,
+                        title: RichText(
+                          text: TextSpan(
+                            style: theme.textTheme.bodyLarge,
+                            children: [
+                              TextSpan(
+                                text: notif.sender.username,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
-                            )
-                          : null,
-                      tileColor: notif.isRead
-                          ? Colors.white
-                          : Colors.blue.shade50,
-                      onTap: () => _onNotificationTapped(context, notif),
+                              const TextSpan(text: ' '),
+                              TextSpan(
+                                text: _getNotificationMessage(notif),
+                                style: const TextStyle(
+                                  color: AppTheme.darkText,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        subtitle: Text(
+                          timeAgo,
+                          style: theme.textTheme.bodySmall,
+                        ),
+                        trailing: notif.post?.imageUrls.isNotEmpty ?? false
+                            ? ClipRRect(
+                                borderRadius: BorderRadius.circular(4.0),
+                                child: Image.network(
+                                  notif.post!.imageUrls.first,
+                                  width: 50,
+                                  height: 50,
+                                  fit: BoxFit.cover,
+                                ),
+                              )
+                            : null,
+                        onTap: () => _onNotificationTapped(context, notif),
+                      ),
                     ),
                   );
                 },
