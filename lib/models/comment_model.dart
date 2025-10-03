@@ -18,7 +18,6 @@ class Comment {
   factory Comment.fromJson(Map<String, dynamic> json) {
     var replyList = <Comment>[];
     if (json['replies'] != null) {
-      // แปลงข้อมูล replies ที่ซ้อนกันอยู่ให้เป็น Comment object ด้วย
       replyList = (json['replies'] as List)
           .map((r) => Comment.fromJson(r))
           .toList();
@@ -28,7 +27,7 @@ class Comment {
       author: User.fromJson(json['author']),
       text: json['text'],
       createdAt: DateTime.parse(json['createdAt']),
-      replies: replyList, // <-- ✨ เพิ่มเข้ามา
+      replies: replyList,
     );
   }
 }
