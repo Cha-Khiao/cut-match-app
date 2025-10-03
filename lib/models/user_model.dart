@@ -7,6 +7,9 @@ class User {
   final List<String> following;
   final String salonName;
   final String salonMapUrl;
+  final int? postCount;
+  final int? followerCount;
+  final int? followingCount;
 
   User({
     required this.id,
@@ -17,9 +20,50 @@ class User {
     required this.following,
     required this.salonName,
     required this.salonMapUrl,
+    this.postCount,
+    this.followerCount,
+    this.followingCount,
   });
 
+  User copyWith({
+    String? id,
+    String? username,
+    String? email,
+    String? role,
+    String? profileImageUrl,
+    List<String>? following,
+    String? salonName,
+    String? salonMapUrl,
+    int? postCount,
+    int? followerCount,
+    int? followingCount,
+  }) {
+    return User(
+      id: id ?? this.id,
+      username: username ?? this.username,
+      email: email ?? this.email,
+      role: role ?? this.role,
+      profileImageUrl: profileImageUrl ?? this.profileImageUrl,
+      following: following ?? this.following,
+      salonName: salonName ?? this.salonName,
+      salonMapUrl: salonMapUrl ?? this.salonMapUrl,
+      postCount: postCount ?? this.postCount,
+      followerCount: followerCount ?? this.followerCount,
+      followingCount: followingCount ?? this.followingCount,
+    );
+  }
+
   factory User.fromJson(Map<String, dynamic> json) {
+    String parseStringFromArray(dynamic value) {
+      if (value is String) {
+        return value;
+      }
+      if (value is List && value.isNotEmpty) {
+        return value.first.toString();
+      }
+      return '';
+    }
+
     return User(
       id: json['_id'] ?? '',
       username: json['username'] ?? '',
@@ -29,10 +73,12 @@ class User {
       following: json['following'] != null
           ? List<String>.from(json['following'].map((item) => item.toString()))
           : [],
-      // --- ✨ แก้ไข 2 บรรทัดนี้ ✨ ---
-      // ตรวจสอบก่อนว่าข้อมูลเป็น String หรือไม่ ถ้าไม่ใช่ให้ใช้ค่าว่าง '' แทน
-      salonName: json['salonName'] is String ? json['salonName'] : '',
-      salonMapUrl: json['salonMapUrl'] is String ? json['salonMapUrl'] : '',
+
+      salonName: parseStringFromArray(json['salonName']),
+      salonMapUrl: parseStringFromArray(json['salonMapUrl']),
+      postCount: json['postCount'],
+      followerCount: json['followerCount'],
+      followingCount: json['followingCount'],
     );
   }
 
@@ -46,6 +92,9 @@ class User {
       'following': following,
       'salonName': salonName,
       'salonMapUrl': salonMapUrl,
+      'postCount': postCount,
+      'followerCount': followerCount,
+      'followingCount': followingCount,
     };
   }
 }
