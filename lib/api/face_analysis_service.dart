@@ -8,8 +8,8 @@ class FaceAnalysisService {
     : _faceDetector = FaceDetector(
         options: FaceDetectorOptions(
           performanceMode: FaceDetectorMode.accurate,
-          enableContours: true, // ✅ ใช้แบบนี้
-          enableLandmarks: true, // ถ้าอยากได้ landmark ด้วย
+          enableContours: true,
+          enableLandmarks: true,
         ),
       );
 
